@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        .progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="game-container" class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8">Reading Game</h1>
+        
+        <div id="main-menu" class="text-center">
+            <button id="start-game" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Start Game
+            </button>
+        </div>
+
+        <div id="game-screen" class="hidden">
+            <div id="progress-container" class="mb-4">
+                <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                    <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="story-container" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+                <p id="story-text" class="text-xl mb-4"></p>
+                <button id="read-story" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mb-4">
+                    Read Story
+                </button>
+            </div>
+
+            <div id="questions-container"></div>
+
+            <button id="check-answers" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded mt-4">
+                Check Answers
+            </button>
+
+            <button id="next-story" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded mt-4 ml-4 hidden">
+                Next Story
+            </button>
+        </div>
+
+        <button id="back-to-main" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mt-4">
+            Back to Main
+        </button>
+
+        <div id="score-container" class="mt-4 text-center">
+            <p>Total Score: <span id="total-score">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        let stories = [];
+        let currentStoryIndex = 0;
+        let currentQuestionIndex = 0;
+        let totalScore = 0;
+        let selectedAnswers = [];
+
+        // Fetch stories from JSON file
+        fetch('stories.json')
+            .then(response => response.json())
+            .then(data => {
+                stories = data.stories;
+            });
+
+        const startGameBtn = document.getElementById('start-game');
+        const gameScreen = document.getElementById('game-screen');
+        const mainMenu = document.getElementById('main-menu');
+        const storyText = document.getElementById('story-text');
+        const readStoryBtn = document.getElementById('read-story');
+        const questionsContainer = document.getElementById('questions-container');
+        const checkAnswersBtn = document.getElementById('check-answers');
+        const nextStoryBtn = document.getElementById('next-story');
+        const backToMainBtn = document.getElementById('back-to-main');
+        const totalScoreSpan = document.getElementById('total-score');
+        const progressBar = document.getElementById('progress-bar');
+
+        startGameBtn.addEventListener('click', startGame);
+        readStoryBtn.addEventListener('click', readStory);
+        checkAnswersBtn.addEventListener('click', checkAnswers);
+        nextStoryBtn.addEventListener('click', nextStory);
+        backToMainBtn.addEventListener('click', backToMain);
+
+        function startGame() {
+            mainMenu.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            loadStory(currentStoryIndex);
+        }
+
+        function loadStory(index) {
+            const story = stories[index];
+            storyText.textContent = story.story;
+            storyText.classList.add('fade-in');
+            
+            questionsContainer.innerHTML = '';
+            story.questions.forEach((question, qIndex) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.classList.add('mb-4', 'bg-white', 'shadow-md', 'rounded', 'px-8', 'pt-6', 'pb-8');
+                questionDiv.innerHTML = `
+                    <p class="font-bold mb-2">${question.question}</p>
+                    <button class="read-question bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded mb-2" data-question="${qIndex}">
+                        Read Question
+                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                        ${question.answers.map((answer, aIndex) => `
+                            <button class="answer-btn bg-gray-200 hover:bg-gray-300 py-2 px-4 rounded" data-question="${qIndex}" data-answer="${aIndex}">
+                                ${answer}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                questionsContainer.appendChild(questionDiv);
+            });
+
+            updateProgressBar();
+            
+            document.querySelectorAll('.answer-btn').forEach(btn => {
+                btn.addEventListener('click', selectAnswer);
+            });
+
+            document.querySelectorAll('.read-question').forEach(btn => {
+                btn.addEventListener('click', readQuestion);
+            });
+
+            selectedAnswers = [];
+            nextStoryBtn.classList.add('hidden');
+        }
+
+        function readStory() {
+            const utterance = new SpeechSynthesisUtterance(storyText.textContent);
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function readQuestion(event) {
+            const questionIndex = event.target.getAttribute('data-question');
+            const questionText = stories[currentStoryIndex].questions[questionIndex].question;
+            const utterance = new SpeechSynthesisUtterance(questionText);
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function selectAnswer(event) {
+            const questionIndex = event.target.getAttribute('data-question');
+            const answerIndex = event.target.getAttribute('data-answer');
+            
+            document.querySelectorAll(`[data-question="${questionIndex}"]`).forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200');
+            });
+            
+            event.target.classList.remove('bg-gray-200');
+            event.target.classList.add('bg-blue-500', 'text-white');
+            
+            selectedAnswers[questionIndex] = parseInt(answerIndex);
+        }
+
+        function checkAnswers() {
+            let correctAnswers = 0;
+            const story = stories[currentStoryIndex];
+            
+            story.questions.forEach((question, index) => {
+                const selectedAnswer = selectedAnswers[index];
+                const correctAnswer = question.correctAnswer;
+                
+                const answerButtons = document.querySelectorAll(`[data-question="${index}"]`);
+                answerButtons.forEach(btn => btn.disabled = true);
+                
+                if (selectedAnswer === correctAnswer) {
+                    correctAnswers++;
+                    answerButtons[selectedAnswer + 1].classList.add('bg-green-500');
+                } else {
+                    answerButtons[selectedAnswer + 1].classList.add('bg-red-500');
+                    answerButtons[correctAnswer + 1].classList.add('bg-green-500');
+                }
+            });
+
+            totalScore += correctAnswers;
+            totalScoreSpan.textContent = totalScore;
+
+            const resultMessage = `You got ${correctAnswers} out of ${story.questions.length} correct!`;
+            alert(resultMessage);
+
+            nextStoryBtn.classList.remove('hidden');
+            checkAnswersBtn.disabled = true;
+        }
+
+        function nextStory() {
+            currentStoryIndex++;
+            if (currentStoryIndex < stories.length) {
+                loadStory(currentStoryIndex);
+                checkAnswersBtn.disabled = false;
+            } else {
+                alert('Congratulations! You have completed all stories.');
+                backToMain();
+            }
+        }
+
+        function backToMain() {
+            gameScreen.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+            currentStoryIndex = 0;
+            totalScore = 0;
+            totalScoreSpan.textContent = totalScore;
+        }
+
+        function updateProgressBar() {
+            const progress = ((currentStoryIndex + 1) / stories.length) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+    </script>
+</body>
+</html>
